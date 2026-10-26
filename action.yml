@@ -1,0 +1,25 @@
+# Repo Wrapped Release Recap — composite action (contract pinned in the main
+# repo's docs/action.md + ADR 022; keep the two in sync).
+#
+# Appends an AI-narrated "what shipped" recap to the GitHub Release that
+# triggered the workflow. All writes ride the workflow's own github.token in
+# the user's repo — Repo Wrapped holds no write scope anywhere. Any endpoint
+# failure no-ops with a ::notice:: so this can never break a release pipeline.
+name: "Repo Wrapped Release Recap"
+description: "Append an AI-narrated 'what shipped' recap to your GitHub Release"
+branding:
+  icon: "gift"
+  color: "purple"
+runs:
+  using: "composite"
+  steps:
+    - shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        GH_REPO: ${{ github.repository }}
+      run: |
+        set -euo pipefail
+        RECAP=$(curl -sf "https://repowrapped.com/gh/${GITHUB_REPOSITORY}/recap.md?to=${GITHUB_REF_NAME}") || {
+          echo "::notice::Repo Wrapped recap unavailable — skipping."; exit 0; }
+        BODY=$(gh release view "${GITHUB_REF_NAME}" --json body -q .body)
+        printf '%s\n\n%s\n' "$BODY" "$RECAP" | gh release edit "${GITHUB_REF_NAME}" --notes-file -
